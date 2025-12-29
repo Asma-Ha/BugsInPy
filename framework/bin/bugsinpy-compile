@@ -22,16 +22,16 @@ do
 done
 
 ###Update the work directory
-if [ "$work_dir" == "" ]; then 
+if [ "$work_dir" == "" ]; then
    work_dir=$(pwd)
 fi
 
-if [[ $work_dir == */ ]]; then 
+if [[ $work_dir == */ ]]; then
    temp_work_dir="$work_dir"
    work_dir=${temp_work_dir::-1}
 fi
 
-###Check work directory 
+###Check work directory
 if [[ ! -e "$work_dir/bugsinpy_bug.info" ]]; then
    echo "This is not a checkout project folder"
    exit
@@ -128,28 +128,67 @@ done < "$work_dir/bugsinpy_bug.info"
        echo $REPLY
     done < "$work_dir/bugsinpy_setup.sh"
   fi
-  
+
   IFS=';' read -r -a run_setup <<< "$run_setup_all"
 
 ###Run setup.sh
 #dos2unix $work_dir/bugsinpy_requirements.txt
 #pip install -r "$work_dir/bugsinpy_requirements.txt"
+
+#python -m pip install --upgrade pip==20.3.4 setuptools==49.6.0 wheel==0.36.2
+#echo "versions"
+#python -m pip --version
+#python -m pip show setuptools
+#python -m pip show wheel
+
+
+#if project is pandas :
+if [[ "$work_dir" == *"pandas"* ]]; then
+    export CFLAGS="-O2 -w"
+    export CXXFLAGS="-O2 -w"
+    python -m pip install "pytest==7.4.4"
+
+fi
+
+
 if grep -q '[^[:space:]]' "$work_dir/bugsinpy_requirements.txt"; then
     sed -e '/^\s*#.*$/d' -e '/^\s*$/d' $work_dir/bugsinpy_requirements.txt | xargs -I {} pip install {}
 fi
 
 for index in "${!run_setup[@]}"
 do
-   run_setup_trail=${run_setup[index]} 
+   run_setup_trail=${run_setup[index]}
    run_setup_now=$(echo $run_setup_trail | sed -e 's/\r//g')
+
+    echo "Current working directory: $(pwd)"
+    echo "Python executable: $(which python)"
+    echo "----------------------------------------"
+    echo "Running command #$((index+1)) from bugsinpy_setup.sh:"
+    echo "$run_setup_now"
+
+    echo "----------------------------------------"
+
+
    $run_setup_now
 done
-  
+
 ###Install requirement
 #pip install -r "$work_dir/bugsinpy_requirements.txt"
 if grep -q '[^[:space:]]' "$work_dir/bugsinpy_requirements.txt"; then
     sed -e '/^\s*#.*$/d' -e '/^\s*$/d' $work_dir/bugsinpy_requirements.txt | xargs -I {} pip install {}
 fi
+
+
+#run some stuff for luigi, todo : move to setup.sh
+if [[ "$work_dir" == *"luigi"* ]]; then
+    apt-get update
+    apt-get install -y     libkrb5-dev     krb5-user     krb5-config
+    pip install --no-input requests-kerberos
+    pip install --upgrade pyopenssl
+    python3 -m pip install mysql-connector-python sqlalchemy prometheus-client "hypothesis<6.0.0" "azure-storage-blob<3.0.0" "moto<4.0.0" "elasticsearch<8.0.0,>=7.0.0" responses boto3 hdfs snakebite
+    export AWS_DEFAULT_REGION="eu-central-1"
+fi
+
 deactivate
 
 
@@ -185,13 +224,13 @@ deactivate
                   echo "$temp2:$pythonpath_set:$temp$temp_py$tes"
                fi
             fi
-        fi 
-        done <  ~/.bashrc 
+        fi
+        done <  ~/.bashrc
         if [[ "$pythonpath_exist" == "NO" ]]; then
             should_change="NO"
             temp_path_not_exist='PYTHONPATH="$pythonpath_set:$PYTHONPATH"'
-            echo "$temp_path_not_exist" >> ~/.bashrc 
-            echo "export PYTHONPATH" >> ~/.bashrc 
+            echo "$temp_path_not_exist" >> ~/.bashrc
+            echo "export PYTHONPATH" >> ~/.bashrc
             source ~/.bashrc
         fi
         if [[ "$should_change" == "YES" ]]; then
@@ -201,7 +240,7 @@ deactivate
                 sed -i.bak '/export PYTHONPATH/d' ~/.bashrc
             fi
 
-            
+
             string1="${saveReply%:*}"
             string2="${saveReply##*:}"
             if [[ "$string2" == *"PYTHONPATH"* ]]; then
@@ -223,6 +262,34 @@ deactivate
       fi
   fi
 
+
+# in this project conftest uses get_markers which is deprecated
+if [[ "$work_dir" == *"thefuck"* ]]; then
+    conftest="${work_dir}/tests/conftest.py"
+
+    if [[ -f "$conftest" ]]; then
+        echo "Checking $conftest"
+s
+        has_old=$(grep -q "get_marker(" "$conftest"; echo $?)
+        has_new=$(grep -q "get_closest_marker(" "$conftest"; echo $?)
+
+        # has_old == 0 → old API found
+        # has_new == 0 → new API already present
+        if [[ $has_old -eq 0 && $has_new -ne 0 ]]; then
+            echo "Fixing deprecated get_marker → get_closest_marker"
+
+            # backup
+            cp "$conftest" "$conftest.bak"
+
+            # replace old call
+            sed -i 's/get_marker(/get_closest_marker(/g' "$conftest"
+        else
+            echo "No changes needed"
+        fi
+    else
+        echo "No conftest.py found at: $conftest"
+    fi
+fi
 
 ###Add compile flag
 echo "1" > "$work_dir/bugsinpy_compile_flag"

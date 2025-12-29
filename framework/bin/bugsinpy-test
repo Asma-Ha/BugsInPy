@@ -4,10 +4,11 @@ usage="-w work_dir
              The working directory to run the test. Default will be the current directory.
        -t single_test
              Run single test from input. Default will run the test case that relevant from bugs. Format for pytest: <test_file_path>::<test_method>. Format for unittest: <test_file_path_without.py>.<test_class>.<test_method> . Use bugsinpy-info to get the information about the project.
-       -a
+       -a tests_to_run
              Run all test case in the project. Default will run the test case that relevant from bugs
        -r
              Run the test case that relevant from bugs (Default)
+
 "
 
 
@@ -25,21 +26,27 @@ ____HALP
 esac
 
 single_test=""
+tests_to_run=""
 ###Read the flag of checkout
-while getopts t:w: flag
+while getopts t:w:a:r flag
 do
     case "${flag}" in
         w) work_dir=${OPTARG};;
         t) single_test=${OPTARG};;
+        a)
+            run_all="1"
+            tests_to_run="${OPTARG}"
+            ;;
     esac
 done
 
+
 ###Update the work directory
-if [ "$work_dir" == "" ]; then 
+if [ "$work_dir" == "" ]; then
    work_dir=$(pwd)
 fi
 
-if [[ $work_dir == */ ]]; then 
+if [[ $work_dir == */ ]]; then
    temp_work_dir="$work_dir"
    work_dir=${temp_work_dir::-1}
 fi
@@ -67,6 +74,7 @@ else
   source env/bin/activate
 fi
 
+echo $(python --version)
 pytest="0"
 #read file run_test.sh
 run_command_all=""
@@ -88,18 +96,19 @@ rm -f "$work_dir/bugsinpy_alltest.txt"
 rm -f "$work_dir/bugsinpy_singletest.txt"
 
 if [[ "$run_all" == "0" && "$single_test" == "" ]]; then
+
    #run every command on the run_test.sh
    run_command_filter=""
    for index in "${!run_command[@]}"
    do
-     run_command_trail=${run_command[index]} 
-  
+     run_command_trail=${run_command[index]}
+
      echo "RUN EVERY COMMAND"
      echo "$index"
      echo "$run_command_now"
      echo "$test_file_now"
      run_command_now=$(echo $run_command_trail | sed -e 's/\r//g')
-  
+
      res_first=$($run_command_now 2>&1)
      echo "$res_first"
      if [[ ${res_first##*$'\n'} == *"OK"* || ${res_first##*$'\n'} == *"pass"* || $res_first == *"passed"* || $res_first == *"OK "* ]]; then
@@ -107,38 +116,33 @@ if [[ "$run_all" == "0" && "$single_test" == "" ]]; then
      else
         echo "$run_command_now" &>>"$work_dir/bugsinpy_fail.txt"
         echo "$res_first" &>>"$work_dir/bugsinpy_fail.txt"
+        echo "hi"
      fi
    done
 
 elif [[ "$run_all" == "1" ]]; then
-  if [[ "$pytest" == "1" ]]; then
-     res_first=$(pytest 2>&1)
-     echo "$res_first"
-     echo "pytest" &>>"$work_dir/bugsinpy_alltest.txt"
-     echo "$res_first" &>>"$work_dir/bugsinpy_alltest.txt"
-  else
-     echo "Run Unittest" 
-     ###Read bug.info file
-     DONE=false
-     until $DONE ;do
-     read || DONE=true
-     if [[ "$REPLY" == "test_file"* ]]; then
-        test_file_all="$(cut -d'"' -f 2 <<< $REPLY)"
-        IFS=';' read -r -a test_file <<< "$test_file_all"
-        test_file_now=${test_file[0]}
-     fi
-     done < "$work_dir/bugsinpy_bug.info"
 
-     echo "$test_file_now"
-     stop_loop_test="0"
-     access_test=""
-     if [[ "$test_file_now" != "" ]]; then
-        IFS='/' read -r -a test_file_ex <<< "$test_file_now"
-     fi
-     
-     
 
-     for index in "${!test_file_ex[@]}"
+  ####### All tests are run using pytest
+
+    DONE=false
+    until $DONE ;do
+       read || DONE=true
+       if [[ "$REPLY" == "test_file"* ]]; then
+          test_file_all="$(cut -d'"' -f 2 <<< $REPLY)"
+          IFS=';' read -r -a test_file <<< "$test_file_all"
+          test_file_now=${test_file[0]}
+       fi
+    done < "$work_dir/bugsinpy_bug.info"
+
+   echo "$test_file_now"
+   stop_loop_test="0"
+   access_test=""
+   if [[ "$test_file_now" != "" ]]; then
+      IFS='/' read -r -a test_file_ex <<< "$test_file_now"
+   fi
+
+   for index in "${!test_file_ex[@]}"
      do
      test_file_temp=${test_file_ex[index]}
      if [[ "$stop_loop_test" == "0" ]]; then
@@ -147,21 +151,129 @@ elif [[ "$run_all" == "1" ]]; then
         else
            if [[ "$test_file_temp" == "test" || "$test_file_temp" == "tests" ]]; then
               stop_loop_test="1"
-           fi 
+           fi
            access_test+="$test_file_temp/"
         fi
      fi
      done
 
-     echo "$access_test"
-     echo "python -m unittest discover $access_test"
-     res_first=$(python -m unittest discover $access_test 2>&1)
-     #python -m unittest
-     echo "$res_first"
-     echo "python -m unittest discover $access_test" &>>"$work_dir/bugsinpy_alltest.txt"
-     echo "$res_first" &>>"$work_dir/bugsinpy_alltest.txt"
 
-  fi
+   echo "$access_test"
+   access_test="${access_test%/}"
+   echo "$access_test"
+
+    # Convert tests_to_run string to array
+    IFS=',' read -r -a test_array <<< "$tests_to_run"
+
+    #install pytest-json-report to get pytest report
+    if [[ "$work_dir" == *"httpie"* ]]; then
+        echo "pytest : $(python -m pytest --version)"
+        python -m pip install "pytest==7.4.4"
+    fi
+
+    if [[ "$work_dir" == *"thefuck"* ]]; then
+        echo "pytest : $(python -m pytest --version)"
+        python -m pip install "pytest==7.4.4"
+
+        conftest="${access_test}/conftest.py"test_download_in_session
+    fi
+
+    if [[ "$work_dir" == *"keras"* ]]; then
+        echo "pytest : $(python -m pip show pytest)"
+        python -m pip install "pytest==7.4.4"
+        echo "pytest : $(python -m pip show pytest)"
+
+    fi
+
+    if [[ "$work_dir" == *"spacy"* ]]; then
+        echo "pytest : $(python -m pytest --version)"
+        python -m pip install "pytest==7.4.4"
+    fi
+
+    python -m pip install pytest-json-report
+
+    echo "pytest version $(python -m pip show pytest)"
+
+    if [ ${#test_array[@]} -eq 0 ]; then
+
+        if [[ "$work_dir" == *"tqdm"* ]]; then
+          res_first=$(
+              python -m pytest "$access_test"/* \
+                  --json-report \
+                  --json-report-file="$work_dir/pytest_report.json" 2>&1
+          )
+
+          echo "$res_first"
+          echo "pytest" &>>"$work_dir/bugsinpy_alltest.txt"
+          echo "$res_first" &>>"$work_dir/bugsinpy_alltest.txt"
+        else
+          res_first=$(
+              python -m pytest "${access_test}/" \
+                  --json-report \
+                  --json-report-file="$work_dir/pytest_report.json" 2>&1
+          )
+
+          echo "$res_first"
+          echo "pytest" &>>"$work_dir/bugsinpy_alltest.txt"
+          echo "$res_first" &>>"$work_dir/bugsinpy_alltest.txt"
+        fi
+    else
+        # Preapend access_test directory to each test
+        #sometimes like in fastapi 9, tests are not in $access_test but somewhere else
+
+        for i in "${!test_array[@]}"; do
+
+            test_path="${test_array[$i]}"
+            #echo "TEST"
+            #echo $test_path
+            file_part="${test_path%%::*}"
+
+            echo $file_part
+            if [[ -f "$file_part" ]]; then
+                continue
+            fi
+
+            new_file="$access_test/$file_part"
+            echo $new_file
+            if [[ -f "$new_file" ]]; then
+                test_array[$i]="$access_test/${test_array[$i]}"
+                continue
+            fi
+            echo "oopsie gotta remove test "
+            echo ${test_array[$i]}
+            unset 'test_array[$i]' #if it still doesnt exist : sometimes like in fastapi 9, tests are not in $access_test but somewhere else
+        done
+
+        if [[ "$work_dir" == *"fastapi"* ]]; then
+          echo "fastapi gets no tests"
+          test_array=()
+        fi
+
+        if [[ "$work_dir" == *"tornado"* ]]; then #distinguishing test not in coverage
+          echo "tornado gets no tests"
+          #pwd
+          #ls tornado/test/
+          test_array=( "${access_test}/" )
+        fi
+
+
+        echo "Running selected pytest tests: ${test_array[*]}"
+        cmd=(python -m pytest "${test_array[@]}" \
+        --json-report \
+        --json-report-file="$work_dir/pytest_report.json")
+
+        echo "Running command: ${cmd[@]}"
+
+        res_first=$(
+            python -m pytest "${test_array[@]}" \
+                --json-report \
+                --json-report-file="$work_dir/pytest_report.json" 2>&1
+        )
+
+        echo "$res_first"
+        echo "pytest" &>>"$work_dir/bugsinpy_alltest.txt"
+        echo "$res_first" &>>"$work_dir/bugsinpy_alltest.txt"
+    fi
 
 elif [ "$single_test" != "" ]; then
   if [[ "$pytest" == "1" ]]; then
