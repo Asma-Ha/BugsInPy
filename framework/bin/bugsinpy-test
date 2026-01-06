@@ -168,29 +168,44 @@ elif [[ "$run_all" == "1" ]]; then
     #install pytest-json-report to get pytest report
     if [[ "$work_dir" == *"httpie"* ]]; then
         echo "pytest : $(python -m pytest --version)"
-        python -m pip install "pytest==7.4.4"
+        #python -m pip install "pytest==7.4.4"
+        INSTALLED_VERSION=$(python -c "import pytest; print(pytest.__version__)" 2>/dev/null || echo "none")
+        if [ "$INSTALLED_VERSION" != "7.4.4" ]; then
+            python -m pip install "pytest==7.4.4"
+        fi
     fi
 
     if [[ "$work_dir" == *"thefuck"* ]]; then
         echo "pytest : $(python -m pytest --version)"
-        python -m pip install "pytest==7.4.4"
-
-        conftest="${access_test}/conftest.py"test_download_in_session
+        #python -m pip install "pytest==7.4.4"
+        INSTALLED_VERSION=$(python -c "import pytest; print(pytest.__version__)" 2>/dev/null || echo "none")
+        if [ "$INSTALLED_VERSION" != "7.4.4" ]; then
+            python -m pip install "pytest==7.4.4"
+        fi
+        conftest="${access_test}/conftest.py"
     fi
 
     if [[ "$work_dir" == *"keras"* ]]; then
         echo "pytest : $(python -m pip show pytest)"
         python -m pip install "pytest==7.4.4"
-        echo "pytest : $(python -m pip show pytest)"
-
+        #echo "pytest : $(python -m pip show pytest)"
+        INSTALLED_VERSION=$(python -c "import pytest; print(pytest.__version__)" 2>/dev/null || echo "none")
+        if [ "$INSTALLED_VERSION" != "7.4.4" ]; then
+            python -m pip install "pytest==7.4.4"
+        fi
     fi
 
     if [[ "$work_dir" == *"spacy"* ]]; then
         echo "pytest : $(python -m pytest --version)"
-        python -m pip install "pytest==7.4.4"
+        #python -m pip install "pytest==7.4.4"
+        INSTALLED_VERSION=$(python -c "import pytest; print(pytest.__version__)" 2>/dev/null || echo "none")
+        if [ "$INSTALLED_VERSION" != "7.4.4" ]; then
+            python -m pip install "pytest==7.4.4"
+        fi
     fi
 
-    python -m pip install pytest-json-report
+    #python -m pip install pytest-json-report
+    python -m pip show pytest-json-report >/dev/null 2>&1 || python -m pip install pytest-json-report
 
     echo "pytest version $(python -m pip show pytest)"
 
